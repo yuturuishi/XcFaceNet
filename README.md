@@ -1,12 +1,11 @@
-### BXC_FaceNet
+### XcFaceNet
 * 作者：北小菜 
-* 官网：http://www.beixiaocai.com
 * 邮箱：bilibili_bxc@126.com
 * QQ：1402990689
 * 微信：bilibili_bxc
 * 哔哩哔哩主页：https://space.bilibili.com/487906612
-* gitee开源地址：https://gitee.com/Vanishi/BXC_FaceNet
-* github开源地址：https://github.com/beixiaocai/BXC_FaceNet
+* gitee开源地址：https://gitee.com/Vanishi/XcFaceNet
+* github开源地址：https://github.com/beixiaocai/XcFaceNet
 
 ### 项目介绍
 * 适用于人脸特征提取的算法训练框架
