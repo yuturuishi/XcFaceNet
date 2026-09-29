@@ -1,84 +1,34 @@
-import datetime
-import os
-import torch
-import matplotlib
-matplotlib.use('Agg')
-import scipy.signal
-from matplotlib import pyplot as plt
-from torch.utils.tensorboard import SummaryWriter
+# -*- coding: utf-8 -*-
+"""
+训练历史记录（基于 logging 模块，替代原 TensorBoard/tfevents + matplotlib 方案）
+
+每个 epoch 的损失与精度直接写入本次运行的日志文件（log/train-年月日-时分秒.log），
+并在内存中维护历史，用于统计最优精度与最优 epoch。
+"""
+import logging
+
 
 class LossHistory():
-    def __init__(self, log_dir, model, input_shape):
-        time_str        = datetime.datetime.strftime(datetime.datetime.now(),'%Y%m%d-%H%M%S')
-        self.log_dir    = os.path.join(log_dir, "log_" + str(time_str))
-        self.acc        = []
-        self.losses     = []
-        self.val_loss   = []
-        
-        os.makedirs(self.log_dir)
-        self.writer     = SummaryWriter(self.log_dir)
-        dummy_input     = torch.randn(2, 3, input_shape[0], input_shape[1])
-        self.writer.add_graph(model, dummy_input)
+    def __init__(self):
+        self.acc        = []    # 每个 epoch 的评估精度（开启 LFW 时为 LFW 精度，否则为训练集分类精度）
+        self.losses     = []    # 每个 epoch 的训练损失
+        self.val_loss   = []    # 每个 epoch 的验证损失
+        self.best_acc   = -1.0  # 历史最优精度
+        self.best_epoch = -1    # 最优精度对应的 epoch（从 1 开始计）
 
     def append_loss(self, epoch, acc, loss, val_loss):
-        if not os.path.exists(self.log_dir):
-            os.makedirs(self.log_dir)
-            
         self.acc.append(acc)
         self.losses.append(loss)
         self.val_loss.append(val_loss)
 
-        with open(os.path.join(self.log_dir, "epoch_acc.txt"), 'a') as f:
-            f.write(str(acc))
-            f.write("\n")
-        with open(os.path.join(self.log_dir, "epoch_loss.txt"), 'a') as f:
-            f.write(str(loss))
-            f.write("\n")
-        with open(os.path.join(self.log_dir, "epoch_val_loss.txt"), 'a') as f:
-            f.write(str(val_loss))
-            f.write("\n")
+        # 更新最优记录
+        if acc > self.best_acc:
+            self.best_acc   = acc
+            self.best_epoch = epoch + 1
+            if len(self.acc) > 1:
+                logging.info("[历史] 本epoch精度 %.5f 创下新高（此前最优 %.5f）", acc, sorted(self.acc)[-2])
 
-        self.writer.add_scalar('loss', loss, epoch)
-        self.writer.add_scalar('val_loss', val_loss, epoch)
-        self.loss_plot()
-
-    def loss_plot(self):
-        iters = range(len(self.losses))
-
-        plt.figure()
-        plt.plot(iters, self.losses, 'red', linewidth = 2, label='train loss')
-        plt.plot(iters, self.val_loss, 'coral', linewidth = 2, label='val loss')
-        try:
-            if len(self.losses) < 25:
-                num = 5
-            else:
-                num = 15
-            plt.plot(iters, scipy.signal.savgol_filter(self.losses, num, 3), 'green', linestyle = '--', linewidth = 2, label='smooth train loss')
-            plt.plot(iters, scipy.signal.savgol_filter(self.val_loss, num, 3), '#8B4513', linestyle = '--', linewidth = 2, label='smooth val loss')
-        except:
-            pass
-        plt.grid(True)
-        plt.xlabel('Epoch')
-        plt.ylabel('Loss')
-        plt.legend(loc="upper right")
-        plt.savefig(os.path.join(self.log_dir, "epoch_loss.png"))
-        plt.cla()
-        plt.close("all")
-
-        plt.figure()
-        plt.plot(iters, self.acc, 'red', linewidth = 2, label='lfw acc')
-        try:
-            if len(self.losses) < 25:
-                num = 5
-            else:
-                num = 15
-            plt.plot(iters, scipy.signal.savgol_filter(self.acc, num, 3), 'green', linestyle = '--', linewidth = 2, label='smooth lfw acc')
-        except:
-            pass
-        plt.grid(True)
-        plt.xlabel('Epoch')
-        plt.ylabel('Lfw Acc')
-        plt.legend(loc="upper right")
-        plt.savefig(os.path.join(self.log_dir, "epoch_acc.png"))
-        plt.cla()
-        plt.close("all")
+        logging.info(
+            "[历史] 累计完成 %d 个epoch | 历史最优精度 %.5f（epoch %03d）",
+            len(self.losses), self.best_acc, self.best_epoch,
+        )

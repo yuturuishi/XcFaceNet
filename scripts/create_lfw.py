@@ -40,8 +40,8 @@ def create_unmatched_result(lfw_dir, all_number):
         unmatched_result.add(s)
     return list(unmatched_result)
 if __name__ == '__main__':
-    lfw_dir = '../datasets/lfw'
-    lfw_desc_path = '../datasets/lfw.txt'
+    lfw_dir = r"D:\datasets\face\lfw\lfw"
+    lfw_desc_path = r"D:\datasets\face\lfw\lfw.txt"
     
     repeat_count = 10 # 重复次数
     pair_number = 300  # 每次匹配数量

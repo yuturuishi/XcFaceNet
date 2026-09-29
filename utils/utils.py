@@ -1,6 +1,8 @@
+import logging
 import random
 import numpy as np
 import torch
+import cv2
 from PIL import Image
 
 #---------------------------------------------------------#
@@ -64,27 +66,32 @@ def seed_everything(seed=11):
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
+    # 不再强制 cudnn.deterministic/benchmark（与训练脚本 benchmark=True 自相矛盾）：
+    # 随机triplet采样本就无法严格复现，训练脚本按需自行设置 benchmark 以启用最快卷积算法
 
 #---------------------------------------------------#
 #   设置Dataloader的种子
 #---------------------------------------------------#
 def worker_init_fn(worker_id, rank, seed):
-    worker_seed = rank + seed
+    # 修复：必须把 worker_id 混入种子。旧实现 rank+seed 在单卡下对所有 worker 相同，
+    # 配合"忽略index的随机triplet采样"导致 6 个 worker 产出完全相同的采样流，
+    # 每 epoch 实际唯一数据只有名义的 1/6（ArcFace 分类头精度恒 0% 的根因）。
+    worker_seed = seed + worker_id + rank * 1000
     random.seed(worker_seed)
     np.random.seed(worker_seed)
     torch.manual_seed(worker_seed)
+    # 每个 worker 关闭 cv2 内部多线程：避免 N workers × 全核线程互相争抢 CPU（PyTorch 官方建议做法）
+    cv2.setNumThreads(0)
 
 def preprocess_input(image):
     image /= 255.0 
     return image
 
 def show_config(**kwargs):
-    print('Configurations:')
-    print('-' * 70)
-    print('|%25s | %40s|' % ('keys', 'values'))
-    print('-' * 70)
+    logging.info("Configurations:")
+    logging.info("-" * 70)
+    logging.info("|%25s | %40s|" % ('keys', 'values'))
+    logging.info("-" * 70)
     for key, value in kwargs.items():
-        print('|%25s | %40s|' % (str(key), str(value)))
-    print('-' * 70)
+        logging.info("|%25s | %40s|" % (str(key), str(value)))
+    logging.info("-" * 70)

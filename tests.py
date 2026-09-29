@@ -1,11 +1,16 @@
 from PIL import Image
-import matplotlib.pyplot as plt
+import logging
+import os
 import time
 import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
 from nets.facenet import Facenet
+from utils.logger import setup_logger, fmt_duration
 from utils.utils import preprocess_input, resize_image, show_config
+
+# 项目根目录：权重 / 样例图等路径以项目根为基准，任意目录执行都不会跑偏
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 class Test(object):
 
@@ -21,12 +26,13 @@ class Test(object):
         # ---------------------------------------------------#
         #   载入模型与权值
         # ---------------------------------------------------#
-        print('Loading weights into state dict...')
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        logging.info("正在载入模型权重...")
+        # 修复：按用户配置决定权重落点，避免 cuda=False 时权重先落 GPU 再拷回 CPU
+        device = torch.device('cuda' if (self.cuda and torch.cuda.is_available()) else 'cpu')
 
         self.net = Facenet(backbone=self.backbone, mode="predict").eval()
         self.net.load_state_dict(torch.load(self.model_path, map_location=device), strict=False)
-        print('{} model loaded.'.format(self.model_path))
+        logging.info("模型载入完成: %s", self.model_path)
 
         if self.cuda:
             self.net = torch.nn.DataParallel(self.net)
@@ -86,20 +92,31 @@ class Test(object):
         return l1
 
 if __name__ == "__main__":
+    #---------------------------------------------------#
+    #   初始化日志系统：log/test-年月日-时分秒.log
+    #---------------------------------------------------#
+    _, log_file = setup_logger("test_pytorch")
+
+    logging.info("=" * 78)
+    logging.info("XcFaceNet 人脸相似度测试")
+    logging.info("=" * 78)
+    logging.info("[启动] 测试时间: %s | 日志文件: %s", time.strftime("%Y-%m-%d %H:%M:%S"), log_file)
+
     __params = {
-        "model_path" : "runs/model.pth",
-        "input_shape": [160, 160, 3],
+        "model_path" : os.path.join(PROJECT_ROOT, "checkpoints", "model_best_lfw0.9898_ep067.pth"),
+        "input_shape": [112, 112, 3],
         "backbone": "mobilenet",
-        "letterbox_image": True,
+        "letterbox_image": False,  # 与训练/部署一致：直接 resize 112，不做 letterbox
         "cuda": False,
     }
 
     test = Test(**__params)
-    url1 = "data/Adrien_Brody_0001.jpg"
-    url2 = "data/Adrien_Brody_0012.jpg"
+    url1 = os.path.join(PROJECT_ROOT, "data", "Adrien_Brody_0001.jpg")
+    url2 = os.path.join(PROJECT_ROOT, "data", "Adrien_Brody_0012.jpg")
 
-    print("url1=%s"%url1)
-    print("url2=%s"%url2)
+    logging.info("[输入] 图片1: %s", url1)
+    logging.info("[输入] 图片2: %s", url2)
+    show_config(**__params)
 
     image_1 = Image.open(url1)
     image_2 = Image.open(url2)
@@ -108,4 +125,8 @@ if __name__ == "__main__":
     probability = test.detect_image(image_1, image_2)
     t2 = time.time()
 
-    print(t2 - t1, "两张图片的空间距离：", probability)
+    # 特征已 L2 归一化：余弦 = 1 - d²/2（与线上部署同口径）
+    distance = float(np.asarray(probability).reshape(-1)[0])
+    cosine = 1.0 - distance ** 2 / 2.0
+    logging.info("[结果] 推理耗时: %s | 空间距离: %.5f | 余弦相似度: %.4f（越大越相似）",
+                 fmt_duration(t2 - t1), distance, cosine)

@@ -1,0 +1,49 @@
+# 与当前训练环境完全一致（Python 3.12.3 + CUDA 12.1，2026-09 冻结）
+# Windows / Linux 通用，建议两平台统一使用 Python 3.12（Python 3.8 已 EOL，本依赖栈需 3.10+）。
+# torch / torchvision 为 CUDA 12.1 构建版本（+cu121），通过下方 extra-index-url 安装；
+# 仅用 CPU 训练时，删去版本号中的 "+cu121" 后缀即可装 CPU 版。
+--extra-index-url https://download.pytorch.org/whl/cu121
+
+absl-py==2.5.0
+certifi==2026.6.17
+charset-normalizer==3.4.9
+colorama==0.4.6
+contourpy==1.3.3
+cycler==0.12.1
+filelock==3.29.7
+fonttools==4.63.0
+fsspec==2026.6.0
+grpcio==1.82.1
+h5py==3.16.0
+idna==3.18
+Jinja2==3.1.6
+joblib==1.5.3
+kiwisolver==1.5.0
+Markdown==3.10.2
+MarkupSafe==3.0.3
+matplotlib==3.11.0
+mpmath==1.3.0
+narwhals==2.23.0
+networkx==3.6.1
+numpy==1.26.4
+opencv-python==4.11.0.86
+packaging==26.2
+pillow==12.3.0
+protobuf==7.35.1
+pyparsing==3.3.2
+python-dateutil==2.9.0.post0
+requests==2.34.2
+scikit-learn==1.9.0
+scipy==1.17.1
+six==1.17.0
+sympy==1.14.0
+# 训练日志已改用 Python logging，以下两项不再被代码使用（当前环境遗留，可不安装）
+tensorboard==2.21.0
+tensorboard-data-server==0.7.2
+threadpoolctl==3.6.0
+torch==2.2.0+cu121
+torchvision==0.17.0+cu121
+tqdm==4.68.4
+typing_extensions==4.16.0
+urllib3==2.7.0
+Werkzeug==3.1.8

@@ -23,6 +23,9 @@ def calculate_roc(thresholds, distances, labels, nrof_folds=10):
     tprs = np.zeros((nrof_folds,nrof_thresholds))
     fprs = np.zeros((nrof_folds,nrof_thresholds))
     accuracy = np.zeros((nrof_folds))
+    # 修复：逐折记录最优阈值。旧实现 return 用的是循环变量泄漏（最后一折的索引），
+    # 并非 10 折平均阈值
+    best_thresholds = np.zeros((nrof_folds))
 
     indices = np.arange(nrof_pairs)
 
@@ -34,12 +37,13 @@ def calculate_roc(thresholds, distances, labels, nrof_folds=10):
             _, _, acc_train[threshold_idx] = calculate_accuracy(threshold, distances[train_set], labels[train_set])
 
         best_threshold_index = np.argmax(acc_train)
+        best_thresholds[fold_idx] = thresholds[best_threshold_index]
         for threshold_idx, threshold in enumerate(thresholds):
             tprs[fold_idx,threshold_idx], fprs[fold_idx,threshold_idx], _ = calculate_accuracy(threshold, distances[test_set], labels[test_set])
         _, _, accuracy[fold_idx] = calculate_accuracy(thresholds[best_threshold_index], distances[test_set], labels[test_set])
         tpr = np.mean(tprs,0)
         fpr = np.mean(fprs,0)
-    return tpr, fpr, accuracy, thresholds[best_threshold_index]
+    return tpr, fpr, accuracy, np.mean(best_thresholds)
 
 def calculate_accuracy(threshold, dist, actual_issame):
     predict_issame = np.less(dist, threshold)
@@ -69,8 +73,13 @@ def calculate_val(thresholds, distances, labels, far_target=1e-3, nrof_folds=10)
         for threshold_idx, threshold in enumerate(thresholds):
             _, far_train[threshold_idx] = calculate_val_far(threshold, distances[train_set], labels[train_set])
         if np.max(far_train)>=far_target:
-            f = interpolate.interp1d(far_train, thresholds, kind='slinear')
-            threshold = f(far_target)
+            unique_far, unique_idx = np.unique(far_train, return_index=True)
+            unique_thresholds = thresholds[unique_idx]
+            if len(unique_far) >= 2:
+                f = interpolate.interp1d(unique_far, unique_thresholds, kind='slinear', fill_value='extrapolate')
+                threshold = float(f(far_target))
+            else:
+                threshold = float(unique_thresholds[0])
         else:
             threshold = 0.0
 
